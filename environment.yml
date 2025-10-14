@@ -1,0 +1,19 @@
+name: clip_proj
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+dependencies:
+  - python>=3.10
+  - pytorch
+  - torchvision
+  - pytorch-cuda=12.1 # Match your CUDA version HERE
+  - pip
+  - pip:
+      - open_clip_torch>=2.24.0
+      - numpy
+      - scikit-learn
+      - Pillow
+      - matplotlib
+      - tqdm
+      - pyyaml

@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+.venv/
+env/
+build/
+dist/
+reports/figs/*.png
+reports/tables/*.csv
+wandb/
+.data/
+data/*/
+!.gitkeep

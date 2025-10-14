@@ -1,0 +1,3 @@
+### Clip project
+
+### Documentation will be added here soon...
