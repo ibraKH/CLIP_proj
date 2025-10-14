@@ -13,11 +13,12 @@ def write_csv(path: str | Path, rows: list[dict[str, Any]]) -> None:
     ensure_dir(path.parent)
     if not rows:
         return
+    fieldnames: list[str] = sorted({k for r in rows for k in r.keys()})
     with path.open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+        w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         for r in rows:
-            w.writerow(r)
+            w.writerow({k: r.get(k, None) for k in fieldnames})
 
 def write_json(path: str | Path, data: Dict[str, Any]) -> None:
     path = Path(path)
