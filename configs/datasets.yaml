@@ -1,0 +1,4 @@
+# Centralize dataset roots (import or copy into your main configs if desired)
+flowers102: ./data/flowers102
+cifar10: ./data/cifar10
+caltech101: ./data/caltech101
