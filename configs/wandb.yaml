@@ -1,0 +1,4 @@
+use_wandb: false
+project: clip_proj
+entity: null
+name_pattern: "${run.mode}_${data.dataset}_${run.seed}"
