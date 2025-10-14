@@ -8,8 +8,8 @@ run:
 data:
   dataset: flowers102
   root: ./data/flowers102
-  batch_size: 64
-  num_workers: 4
+  batch_size: 128 
+  num_workers: 2
   img_size: 224
 model:
   name: ViT-B-32

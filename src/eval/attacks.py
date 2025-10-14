@@ -1,18 +1,14 @@
 from __future__ import annotations
 from typing import Literal, Tuple
-import io
-import random
 import torch
 from torch import Tensor
-import torchvision.transforms as T
 import torchvision.transforms.functional as F
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter 
 
 from ..datasets.transforms import CLIP_MEAN, CLIP_STD, denormalize
 
 def _tensor_to_pil(x: Tensor) -> Image.Image:
     x = x.detach().cpu()
-    # denorm to [0,1]
     inv = denormalize()
     x = inv(x)
     x = torch.clamp(x, 0, 1)
@@ -35,7 +31,6 @@ def _severity_to_params(name: str, s: int) -> Tuple:
         factor = [1, 2, 3, 4, 6, 8][s]
         return (factor,)
     if name == "text_overlay":
-        # (font_scale, opacity)
         scale = [0.0, 0.5, 0.7, 0.9, 1.1, 1.3][s]
         op = [0.0, 0.25, 0.35, 0.45, 0.6, 0.75][s]
         return (scale, op)
@@ -46,13 +41,10 @@ def _apply_text_overlay(img: Image.Image, text: str, severity: int, position: st
     scale, opacity = _severity_to_params("text_overlay", severity)
     if scale == 0:
         return img
-
     try:
-        # Try a common font path; fallback to default
         font = ImageFont.truetype("arial.ttf", size=int(0.08 * scale * min(W, H)))
     except Exception:
         font = ImageFont.load_default()
-
     overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
     bbox = draw.textbbox((0, 0), text, font=font)
@@ -66,7 +58,6 @@ def _apply_text_overlay(img: Image.Image, text: str, severity: int, position: st
         "center": ((W - tw) // 2, (H - th) // 2),
     }
     xy = positions.get(position.lower(), positions["br"])
-    # white text with alpha
     alpha = int(opacity * 255)
     draw.text(xy, text, fill=(255, 255, 255, alpha), font=font, stroke_width=1, stroke_fill=(0, 0, 0, alpha))
     out = Image.alpha_composite(img.convert("RGBA"), overlay).convert("RGB")
@@ -79,9 +70,7 @@ def apply_attacks(
     text: str | None = None,
     position: str = "br",
 ) -> Tensor:
-    """
-    Batch-wise application; returns tensor normalized to CLIP stats.
-    """
+    """Batch-wise application; returns tensor normalized to CLIP stats."""
     if attack_name == "none" or severity == 0:
         return images
 
@@ -99,7 +88,8 @@ def apply_attacks(
             img = F.to_pil_image(t)
         elif attack_name == "gaussian_blur":
             (rad,) = _severity_to_params("gaussian_blur", severity)
-            img = img.filter(Image.Image.filter if rad == 0 else ImageFilter.GaussianBlur(radius=rad))  # type: ignore
+            if rad > 0:
+                img = img.filter(ImageFilter.GaussianBlur(radius=rad)) 
         elif attack_name == "lowres":
             (factor,) = _severity_to_params("lowres", severity)
             w, h = img.size

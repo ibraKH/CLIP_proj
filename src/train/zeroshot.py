@@ -11,6 +11,7 @@ from ..common.registry import DATASETS
 from ..models.clip_wrapper import CLIPWrapper
 from ..eval.loops import clean_eval, attack_eval
 from ..eval.reliability import save_reliability_diagram
+import src.datasets
 
 
 def main(cfg_path: str):
@@ -41,10 +42,7 @@ def main(cfg_path: str):
         prompt_templates=model_cfg.get("prompt_templates", ["a photo of a {class}."]),
         classnames=classnames,
         device=str(device),
-    )
-
-    # logging
-    wandb_run = init_wandb(use_wandb, project=run["project"], name=run["exp_name"], config=cfg)
+    )  
 
     # clean eval (use validation for calibration and report on test)
     print("Running clean eval on test...")
