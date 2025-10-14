@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from ..common.seed import set_seed
 from ..common.dist import get_device
-from ..common.io import init_wandb, write_csv
+from ..common.io import write_csv
 from ..common.registry import DATASETS
 from ..models.clip_wrapper import CLIPWrapper
 from ..eval.loops import clean_eval, attack_eval
