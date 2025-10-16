@@ -39,7 +39,7 @@ class CoCoOpHead(nn.Module):
     def _encode_text(self) -> Tensor:
         feats = []
         for cname in self.classnames:
-            tokens = self.tokenizer([t.format(class=cname.replace("_", " ")) for t in self.prompt_templates]).to(self.device)
+            tokens = self.tokenizer([t.format_map({"class": cname.replace("_", " ")}) for t in self.prompt_templates]).to(self.device)
             f = self.clip.encode_text(tokens)
             f = f / f.norm(dim=-1, keepdim=True)
             f = f.mean(dim=0)
