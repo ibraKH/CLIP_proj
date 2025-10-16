@@ -25,12 +25,15 @@ class TemperatureScaler(torch.nn.Module):
         return logits / T
 
     def fit(self, logits: Tensor, labels: Tensor, lr: float = 0.01, steps: int = 200) -> float:
+        logits = logits.detach()
+        labels = labels.detach().long()
+
         self.train()
         opt = torch.optim.LBFGS([self.log_T], lr=lr, max_iter=steps)
         nll = torch.nn.CrossEntropyLoss()
 
         def closure():
-            opt.zero_grad()
+            opt.zero_grad(set_to_none=True)
             loss = nll(self.forward(logits), labels)
             loss.backward()
             return loss

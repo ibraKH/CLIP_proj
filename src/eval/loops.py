@@ -24,6 +24,7 @@ def _collect_logits_labels(model, loader: DataLoader, device: torch.device) -> T
 def clean_eval(model, loader: DataLoader, device: torch.device) -> EvalResult:
     logits, labels = _collect_logits_labels(model, loader, device)
     # Fit temperature on the same loader (or pass a separate val if available)
+    logits = logits.detach()
     scaler = TemperatureScaler()
     scaler.fit(logits, labels)
     logits_t = scaler(logits)
@@ -43,13 +44,14 @@ def attack_eval(model, loader: DataLoader, device: torch.device, attack_name: st
 
     for s in severities:
         logits_all, labels_all = [], []
-        for images, labels in tqdm(loader, desc=f"Attack={attack_name} s={s}", leave=False):
-            images = apply_attacks(images, attack_name=attack_name, severity=s)
-            images = images.to(device)
-            logits = model.logits(images)
-            logits_all.append(logits.cpu())
-            labels_all.append(labels.cpu())
-        logits = torch.cat(logits_all)
+        with torch.no_grad():
+            for images, labels in tqdm(loader, desc=f"Attack={attack_name} s={s}", leave=False):
+                images = apply_attacks(images, attack_name=attack_name, severity=s)
+                images = images.to(device)
+                logits = model.logits(images)
+                logits_all.append(logits.cpu())
+                labels_all.append(labels.cpu())
+        logits = torch.cat(logits_all).detach()
         labels = torch.cat(labels_all)
         scaler = TemperatureScaler()
         scaler.fit(logits, labels)
