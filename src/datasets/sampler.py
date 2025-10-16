@@ -1,18 +1,27 @@
 from __future__ import annotations
-from typing import Dict, List, Tuple
-import numpy as np
+from collections import defaultdict
+from typing import Iterable, List, Sequence, Dict
+import random
+import torch
 
-def kshot_indices(labels: List[int], num_classes: int, k: int, seed: int) -> Tuple[List[int], List[int]]:
-    rng = np.random.default_rng(seed)
-    labels = np.array(labels)
-    support: List[int] = []
-    rest: List[int] = []
-    for c in range(num_classes):
-        idx = np.where(labels == c)[0]
-        rng.shuffle(idx)
-        k_c = min(k, len(idx))
-        support.extend(idx[:k_c].tolist())
-        rest.extend(idx[k_c:].tolist())
+def balanced_subset_indices(
+    labels: Sequence[int],
+    limit_per_class: int,
+    class_limit: int | None = None,
+    seed: int = 42,
+) -> List[int]:
+    rng = random.Random(seed)
+    by_class: Dict[int, List[int]] = defaultdict(list)
+    for idx, y in enumerate(labels):
+        by_class[int(y)].append(idx)
 
-    rest = sorted(rest)
-    return support, rest
+    classes = sorted(by_class.keys())
+    if class_limit is not None:
+        classes = classes[:int(class_limit)]
+
+    picked: List[int] = []
+    for c in classes:
+        idxs = by_class[c]
+        rng.shuffle(idxs)
+        picked.extend(sorted(idxs[:limit_per_class]))
+    return picked

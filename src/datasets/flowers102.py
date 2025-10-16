@@ -1,39 +1,41 @@
 from __future__ import annotations
-from typing import Tuple, List
-from pathlib import Path
-
-import torch
-from torch.utils.data import DataLoader
+from typing import Tuple, Sequence
+from torch.utils.data import DataLoader, Subset
 from torchvision.datasets import Flowers102
-import torchvision.transforms as T
+from .transforms import clip_train_transforms, clip_test_transforms
+from .sampler import balanced_subset_indices
 
-from .transforms import clip_train, clip_test
-from ..common.registry import DATASETS
+CLASSNAMES = [  # (existing list in your file)
+    # ...
+]
 
-@DATASETS.register("flowers102")
 def get_flowers102_loaders(
     root: str,
     batch_size: int = 64,
     num_workers: int = 4,
     img_size: int = 224,
-) -> Tuple[DataLoader, DataLoader, DataLoader, List[str]]:
-    """
-    Uses torchvision's official splits:
-    split='train', 'val', 'test'
-    """
-    root_p = Path(root)
-    root_p.mkdir(parents=True, exist_ok=True)
+    limit_per_class: int | None = None,
+    class_limit: int | None = None,
+    seed: int = 42,
+) -> Tuple[DataLoader, DataLoader, DataLoader, Sequence[str]]:
+    tr = Flowers102(root=root, split="train", download=True, transform=clip_train_transforms(img_size))
+    va = Flowers102(root=root, split="val",   download=True, transform=clip_test_transforms(img_size))
+    te = Flowers102(root=root, split="test",  download=True, transform=clip_test_transforms(img_size))
 
-    train_tf = clip_train(img_size)
-    test_tf = clip_test(img_size)
+    def maybe_subset(ds):
+        if limit_per_class is None:
+            return ds
+        idxs = balanced_subset_indices(ds._labels, limit_per_class, class_limit, seed)
+        return Subset(ds, idxs)
 
-    ds_train = Flowers102(root=str(root_p), split="train", download=True, transform=train_tf)
-    ds_val = Flowers102(root=str(root_p), split="val", download=True, transform=test_tf)
-    ds_test = Flowers102(root=str(root_p), split="test", download=True, transform=test_tf)
+    tr = maybe_subset(tr)
+    va = maybe_subset(va)  # small val makes temp-scaling fast
+    te = maybe_subset(te)
 
-    classes = ds_train.classes  # 102 class names
-
-    def to_loader(ds, shuffle=False):
-        return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=True)
-
-    return to_loader(ds_train, shuffle=True), to_loader(ds_val), to_loader(ds_test), classes
+    kwargs = dict(batch_size=batch_size, num_workers=num_workers, pin_memory=True)
+    return (
+        DataLoader(tr, shuffle=True,  **kwargs),
+        DataLoader(va, shuffle=False, **kwargs),
+        DataLoader(te, shuffle=False, **kwargs),
+        CLASSNAMES,
+    )
