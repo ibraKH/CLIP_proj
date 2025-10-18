@@ -13,34 +13,39 @@ from ..common.dist import get_device
 from ..common.io import write_csv
 from ..common.registry import DATASETS, METHODS
 from ..datasets.sampler import kshot_indices
-
+from src.datasets.utils import build_fewshot_subset
 
 def build_support_loader(loader: DataLoader, k: int, seed: int, num_classes: int) -> Tuple[DataLoader, DataLoader]:
-    # materialize labels
-    labels: List[int] = []
-    idx_map: List[int] = []
-    ds = loader.dataset
-    # attempt to read targets
-    if hasattr(ds, "targets"):
-        labels = list(map(int, ds.targets))
-    elif hasattr(ds, "dataset") and hasattr(ds.dataset, "targets"):
-        # for Subset
-        base = ds.dataset
-        labels = [int(base.targets[i]) for i in ds.indices]  # type: ignore
-    else:
-        # fallback via one pass
-        for i in range(len(ds)):
-            idx_map.append(i)
-            _, y = ds[i]
-            labels.append(int(y))
-    support_idx, rest_idx = kshot_indices(labels, num_classes, k, seed)
-    if hasattr(ds, "indices"):
-        # map to original Subset indices
-        support_idx = [ds.indices[i] for i in support_idx]  # type: ignore
-        rest_idx = [ds.indices[i] for i in rest_idx]  # type: ignore
+    """
+    Build few-shot support and the complementary remainder *using local indices* for the given loader.dataset,
+    which may be a Dataset or a Subset(Dataset). Avoids mapping to base indices entirely.
+    """
+    ds = loader.dataset  # may be Dataset or Subset
 
-    sup = DataLoader(Subset(ds, support_idx), batch_size=64, shuffle=True, num_workers=2, pin_memory=True)
-    rem = DataLoader(Subset(ds, rest_idx), batch_size=64, shuffle=False, num_workers=2, pin_memory=True)
+    # Build support subset using local indices (works for Dataset or Subset)
+    support_subset = build_fewshot_subset(ds, k=k, seed=seed)
+
+    # Build complement (remainder) subset in local index space
+    if hasattr(ds, "indices"):
+        # Subset case: local index space is range(len(ds))
+        local_all = set(range(len(ds)))
+        local_support = set(support_subset.indices)  # type: ignore[attr-defined]
+        local_rest = sorted(list(local_all - local_support))
+        rest_subset = Subset(ds, local_rest)
+    else:
+        # Plain Dataset case
+        local_all = set(range(len(ds)))
+        # support_subset is Subset(ds, support_local_indices)
+        local_support = set(support_subset.indices)  # type: ignore[attr-defined]
+        local_rest = sorted(list(local_all - local_support))
+        rest_subset = Subset(ds, local_rest)
+
+    # Use sane loader params; keep batch size/num_workers from the original loader when possible
+    bs = getattr(loader, "batch_size", 64) or 64
+    nw = getattr(loader, "num_workers", 2)
+
+    sup = DataLoader(support_subset, batch_size=bs, shuffle=True,  num_workers=nw, pin_memory=True)
+    rem = DataLoader(rest_subset,   batch_size=bs, shuffle=False, num_workers=nw, pin_memory=True)
     return sup, rem
 
 

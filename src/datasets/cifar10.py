@@ -2,7 +2,8 @@ from __future__ import annotations
 from typing import Tuple, List
 from pathlib import Path
 
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import DataLoader, random_split
 from torchvision.datasets import CIFAR10
 
 from .transforms import clip_train, clip_test
@@ -15,22 +16,30 @@ def get_cifar10_loaders(
     num_workers: int = 4,
     img_size: int = 224,
 ) -> Tuple[DataLoader, DataLoader, DataLoader, List[str]]:
-    train_tf = clip_train(img_size)
-    test_tf = clip_test(img_size)
     root_p = Path(root)
     root_p.mkdir(parents=True, exist_ok=True)
 
-    ds_train = CIFAR10(root=str(root_p), train=True, download=True, transform=train_tf)
+    train_tf = clip_train(img_size)
+    test_tf = clip_test(img_size)
+
+    ds_train_full = CIFAR10(root=str(root_p), train=True, download=True, transform=train_tf)
     ds_test = CIFAR10(root=str(root_p), train=False, download=True, transform=test_tf)
-    # split small validation from train (deterministic)
-    # 45k train / 5k val
-    from torch.utils.data import random_split
-    g = torch.Generator().manual_seed(0)
-    ds_train, ds_val = random_split(ds_train, [45000, 5000], generator=g)
 
-    classes = CIFAR10.classes
+    # Deterministic 45k/5k split from the 50k train set
+    g = torch.Generator()
+    g.manual_seed(0)
+    ds_train, ds_val = random_split(ds_train_full, [45_000, 5_000], generator=g)
 
-    def to_loader(ds, shuffle=False):
-        return DataLoader(ds, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=True)
+    # Prefer instance attribute to avoid API changes
+    classnames: List[str] = list(ds_train_full.classes)
 
-    return to_loader(ds_train, shuffle=True), to_loader(ds_val), to_loader(ds_test), classes
+    def to_loader(ds, shuffle: bool = False) -> DataLoader:
+        return DataLoader(
+            ds,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
+
+    return to_loader(ds_train, shuffle=True), to_loader(ds_val), to_loader(ds_test), classnames
