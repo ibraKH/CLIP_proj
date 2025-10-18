@@ -1,0 +1,28 @@
+run:
+  mode: fewshot
+  seed: 42
+  device: cuda
+  use_wandb: false
+  project: clip_proj
+  exp_name: coop_caltech101_k4
+data:
+  dataset: caltech101
+  root: ./data/caltech101
+  batch_size: 32
+  num_workers: 4
+  img_size: 224
+model:
+  name: ViT-B-32
+  pretrained: laion2B-s34B-b79K
+  prompt_templates: ["a photo of a {class}."]
+method:
+  name: coop
+  k_shot: 4
+  n_ctx: 16
+  lr: 0.01
+  epochs: 50
+  patience: 5
+eval:
+  attacks: ["none", "text_overlay", "gaussian_noise", "gaussian_blur", "lowres"]
+  severities: [0,1,2,3,4,5]
+  save_tables: true

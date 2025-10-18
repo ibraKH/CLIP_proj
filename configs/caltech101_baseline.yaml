@@ -4,18 +4,17 @@ run:
   device: cuda
   use_wandb: false
   project: clip_proj
-  exp_name: zshot_flowers
+  exp_name: zshot_caltech101
 data:
-  dataset: flowers102
-  root: ./data/flowers102
-  batch_size: 128 
+  dataset: caltech101
+  root: ./data/caltech101
+  batch_size: 32 
   num_workers: 2
   img_size: 224
 model:
   name: ViT-B-32
   pretrained: laion2B-s34B-b79K
   prompt_templates: 
-  prompt_templates:
     - "a photo of a {class}."
     - "a close-up photo of a {class}."
     - "a photo of the {class}."
