@@ -14,13 +14,7 @@ data:
 model:
   name: ViT-B-32
   pretrained: laion2B-s34B-b79K
-  prompt_templates: [
-    "a photo of a {class}.",
-    "a blurry photo of a {class}.",
-    "a black and white photo of a {class}.",
-    "a close-up photo of a {class}.",
-    "a bright photo of a {class}.",
-    ]
+  prompt_templates: ["a photo of a {class}."]
 method:
   name: tipadapter
   k_shot: 4
