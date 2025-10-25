@@ -1,0 +1,52 @@
+run:
+  mode: fewshot
+  seed: 42
+  device: cuda
+  use_wandb: false
+  project: clip_proj
+  exp_name: tipadapter_plus_flowers_k4
+
+data:
+  dataset: flowers102
+  root: ./data/flowers102
+  batch_size: 64
+  num_workers: 4
+  img_size: 224
+
+model:
+  name: ViT-B-32
+  pretrained: laion2B-s34B-b79K
+  prompt_templates: ["a photo of a {class}."]
+
+method:
+  name: tipadapter_plus
+  k_shot: 4
+  cache_dir: project_results/cache
+
+  gate:
+    alpha0: 0.5
+    beta0: 5.0
+    hidden: 256
+    reg: 0.05
+    learn_beta: true
+    learn_scale: false
+
+  train:
+    batch_size: 64
+    epochs: 30
+    patience: 5
+    lr: 5e-4
+    weight_decay: 1e-4
+    deterministic: true
+
+  robust_augment:
+    enable: true
+    p: 0.3
+    attacks: [gaussian_blur, gaussian_noise]
+    severity_range: [1, 2]
+
+eval:
+  temperature_scaling: true
+  attacks: [none, gaussian_blur, lowres, gaussian_noise, text_overlay]
+  severities: [0, 1, 2, 3, 4, 5]
+  save_tables: true

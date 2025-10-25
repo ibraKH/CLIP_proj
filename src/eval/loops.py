@@ -11,18 +11,47 @@ from ..datasets.transforms import denormalize
 
 
 @torch.no_grad()
-def _collect_logits_labels(model, loader: DataLoader, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor]:
+def _collect_logits_labels(model, loader: DataLoader, device: torch.device) -> Tuple[torch.Tensor, torch.Tensor, dict]:
+    """
+    Collect logits and labels. Also track alpha/beta statistics if model returns them.
+
+    Returns:
+        logits: [N, C]
+        labels: [N]
+        stats: dict with optional 'mean_alpha', 'std_alpha', 'mean_beta', 'std_beta'
+    """
     logits_all, labels_all = [], []
+    alpha_all, beta_all = [], []
+
     for images, labels in tqdm(loader, desc="Eval", leave=False):
         images = images.to(device)
-        logits = model.logits(images)
+        out = model.logits(images)
+
+        # Handle models that return (logits, alpha, beta) vs just logits
+        if isinstance(out, tuple):
+            logits, alpha, beta = out
+            alpha_all.append(alpha.cpu())
+            beta_all.append(beta.cpu())
+        else:
+            logits = out
+
         logits_all.append(logits.cpu())
         labels_all.append(labels.cpu())
-    return torch.cat(logits_all), torch.cat(labels_all)
+
+    stats = {}
+    if alpha_all:
+        alpha_tensor = torch.cat(alpha_all)
+        beta_tensor = torch.cat(beta_all)
+        stats['mean_alpha'] = float(alpha_tensor.mean().item())
+        stats['std_alpha'] = float(alpha_tensor.std().item())
+        stats['mean_beta'] = float(beta_tensor.mean().item())
+        stats['std_beta'] = float(beta_tensor.std().item())
+
+    return torch.cat(logits_all), torch.cat(labels_all), stats
 
 
 def clean_eval(model, loader: DataLoader, device: torch.device) -> EvalResult:
-    logits, labels = _collect_logits_labels(model, loader, device)
+    logits, labels, stats = _collect_logits_labels(model, loader, device)
     # Fit temperature on the same loader (or pass a separate val if available)
     logits = logits.detach()
     scaler = TemperatureScaler()
@@ -33,6 +62,8 @@ def clean_eval(model, loader: DataLoader, device: torch.device) -> EvalResult:
         "macro_f1": macro_f1_from_logits(logits_t, labels),
         "ece": expected_calibration_error(logits_t, labels),
     }
+    # Add alpha/beta stats if available
+    res.update(stats)  # type: ignore
     return res
 
 
@@ -44,13 +75,24 @@ def attack_eval(model, loader: DataLoader, device: torch.device, attack_name: st
 
     for s in severities:
         logits_all, labels_all = [], []
+        alpha_all, beta_all = [], []
         with torch.no_grad():
             for images, labels in tqdm(loader, desc=f"Attack={attack_name} s={s}", leave=False):
                 images = apply_attacks(images, attack_name=attack_name, severity=s)
                 images = images.to(device)
-                logits = model.logits(images)
+                out = model.logits(images)
+
+                # Handle models that return (logits, alpha, beta) vs just logits
+                if isinstance(out, tuple):
+                    logits, alpha, beta = out
+                    alpha_all.append(alpha.cpu())
+                    beta_all.append(beta.cpu())
+                else:
+                    logits = out
+
                 logits_all.append(logits.cpu())
                 labels_all.append(labels.cpu())
+
         logits = torch.cat(logits_all).detach()
         labels = torch.cat(labels_all)
         scaler = TemperatureScaler()
@@ -63,4 +105,14 @@ def attack_eval(model, loader: DataLoader, device: torch.device, attack_name: st
             "ece": expected_calibration_error(logits_t, labels),
         }
         results[s]["delta_acc"] = clean_acc - acc  # type: ignore
+
+        # Add alpha/beta stats if available
+        if alpha_all:
+            alpha_tensor = torch.cat(alpha_all)
+            beta_tensor = torch.cat(beta_all)
+            results[s]['mean_alpha'] = float(alpha_tensor.mean().item())  # type: ignore
+            results[s]['std_alpha'] = float(alpha_tensor.std().item())  # type: ignore
+            results[s]['mean_beta'] = float(beta_tensor.mean().item())  # type: ignore
+            results[s]['std_beta'] = float(beta_tensor.std().item())  # type: ignore
+
     return results
